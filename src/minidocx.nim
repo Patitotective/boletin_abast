@@ -1,12 +1,12 @@
 import cppstl
 
 const
-  minidocxHeaderPath {.strdefine.} = "minidocx.hpp"
-  minidocxSourcePath {.strdefine.} = "minidocx.cpp"
-  zipDirectory {.strdefine.} = "zip-0.2.1"
-  zipSourcePath {.strdefine.} = "zip-0.2.1/zip.c"
-  pugixmlDirectory {.strdefine.} = "pugixml-1.13"
-  pugixmlSourcePath {.strdefine.} = "pugixml-1.13/pugixml.cpp"
+  minidocxHeaderPath {.strdefine.} = "../minidocx/src/minidocx.hpp"
+  minidocxSourcePath {.strdefine.} = "../minidocx/src/minidocx.cpp"
+  zipDirectory {.strdefine.} = "../minidocx/3rdparty/zip-0.2.1"
+  zipSourcePath {.strdefine.} = "../minidocx/3rdparty/zip-0.2.1/zip.c"
+  pugixmlDirectory {.strdefine.} = "../minidocx/3rdparty/pugixml-1.13"
+  pugixmlSourcePath {.strdefine.} = "../minidocx/3rdparty/pugixml-1.13/pugixml.cpp"
 
 {.passc: "-I" & zipDirectory & " -I" & pugixmlDirectory.}
 {.compile: zipSourcePath.}
