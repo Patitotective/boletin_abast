@@ -1,23 +1,36 @@
-import std/[times, sets, strformat, tables, strutils, encodings]
+import std/[times, sets, strformat, tables, strutils, encodings, os]
 import datamancer
 import arraymancer
 import timeit, pretty
 
 import utils
-import ../minidocx/src/minidocx except Table
 
 type
-  Grupo = enum
+  Grupo* = enum
     gVerdHort = "verduras y hortalizas"
     gTubRaiPla = "tubérculos, raíces y plátanos"
     gFrutas = "frutas"
     gOtros = "otros" # granos y cereales; lácteos y huevos; pescados; procesados; carnes
 
-  Fuente = tuple[ciudad, mercado: string]
+  Fuente* = tuple[ciudad, mercado: string]
 
 const
   dateFormat = "dd/MM/yyyy"
-  fuentes = [
+  ciudades* = [
+    "Armenia", "Barranquilla",
+    "Bogotá, D.C.", "Bucaramanga",
+    "Cali", "Cartagena",
+    "Cúcuta","Florencia (Caquetá)",
+    "Ibagué", "Ipiales (Nariño)",
+    "Manizales", "Medellín",
+    "Montería", "Neiva",
+    "Pereira", "Pasto",
+    "Popayán", "Santa Marta (Magdalena)",
+    "Sincelejo", "Tibasosa (Boyacá)",
+    "Tunja", "Valledupar",
+    "Villavicencio",
+  ]
+  fuentes* = [
     (ciudad: "Armenia", mercado: "Mercar"),
     ("Barranquilla", "Barranquillita"),
     ("Barranquilla", "Granabastos"),
@@ -30,8 +43,8 @@ const
     ("Cali", "Santa Elena"),
     ("Cartagena", "Bazurto"),
     ("Cúcuta", "Cenabastos"),
-    ("Florencia (Caquetá)", ""),
     ("Cúcuta", "La Nueva Sexta"),
+    ("Florencia (Caquetá)", ""),
     ("Ibagué", "Plaza La 21"),
     ("Ipiales (Nariño)", "Centro de acopio"),
     ("Manizales", "Centro Galerías"),
@@ -39,9 +52,9 @@ const
     ("Medellín", "Plaza Minorista \"José María Villa\""),
     ("Montería", "Mercado del Sur"),
     ("Neiva", "Surabastos"),
-    ("Pasto", "El Potrerillo"),
     ("Pereira", "La 41"),
     ("Pereira", "Mercasa"),
+    ("Pasto", "El Potrerillo"),
     ("Popayán", "Plaza de mercado del barrio Bolívar"),
     ("Santa Marta (Magdalena)", ""),
     ("Sincelejo", "Nuevo Mercado"),
@@ -51,32 +64,39 @@ const
     ("Valledupar", "Mercado Nuevo"),
     ("Villavicencio", "CAV")
   ]
-  grupos = [ # Not uniformed (with accents)
+  grupos* = [ # Not uniformed (with accents)
     "verduras y hortalizas", "tubérculos, raíces y plátanos", "frutas",
     "granos y cereales", "lácteos y huevos", "pescados", "procesados", "carnes"
   ]
-  gruposToEnum = { # Uniformed (without accents)
+  gruposToEnum* = { # Uniformed (without accents)
     "verduras y hortalizas": gVerdHort, "tuberculos, raices y platanos": gTubRaiPla, "frutas": gFrutas,
     "granos y cereales": gOtros, "lacteos y huevos": gOtros, "pescados": gOtros, "procesados": gOtros, "carnes": gOtros
   }.toTable
 
+var m = monit("data")
+
 echo &"El formato para fechas es {dateFormat}"
 
-let df = parseCsvString(readFile("InfoAbaste-2-26_03_2024.csv").convert(destEncoding = "UTF-8", srcEncoding = "CP1252"), sep = ';', quote = '\0')
+const path = currentSourcePath.parentDir() / "../InfoAbaste-2-26_03_2024.csv"
+
+let df = parseCsvString(readFile(path).convert(destEncoding = "UTF-8", srcEncoding = "CP1252"), sep = ';', quote = '\0')
 
 for column in ["Fuente", "FechaEncuesta", "HoraEncuesta", "TipoVehiculo", "PlacaVehiculo", "Cod. Depto Proc.", "Departamento Proc.", "Cod. Municipio Proc.", "Municipio Proc.", "Observaciones", "Grupo", "Codigo CPC", "Ali", "Cant Pres", "Pres", "Peso Pres", "Cant Kg"]:
   assert column in df, &"La columna \"{column}\" no existe"
 
 let dateCol = df["FechaEncuesta"]
-let firstDate = dateCol[0, string].parse(dateFormat)
-let lastDate = dateCol[dateCol.high, string].parse(dateFormat)
-assert inDays(lastDate - firstDate) == 13, &"Entre el primer y último registro no hay dos semanas, hay {{inDays(lastDate - firstDate)}} días" # Two weeks, not 14 since subtracting doesn't include lastDate
+let firstWeekStart* = dateCol[0, string].parse(dateFormat)
+let secondWeekEnd* = dateCol[dateCol.high, string].parse(dateFormat)
+let firstWeekEnd* = firstWeekStart + 6.days
+let secondWeekStart* = secondWeekEnd - 6.days
 
-let firstWeekDf = df.filter(f{string -> bool: inDays(idx(`FechaEncuesta`).parse(dateFormat) - firstDate) < 7})
-let secondWeekDf = df.filter(f{string -> bool: inDays(lastDate - idx(`FechaEncuesta`).parse(dateFormat)) < 7})
+assert inDays(secondWeekEnd - firstWeekStart) == 13, &"Entre el primer y último registro no hay dos semanas, hay {{inDays(secondWeekEnd - firstWeekStart)}} días" # Two weeks, not 14 since subtracting doesn't include secondWeekEnd
+
+let firstWeekDf = df.filter(f{string -> bool: inDays(idx(`FechaEncuesta`).parse(dateFormat) - firstWeekStart) < 7})
+let secondWeekDf = df.filter(f{string -> bool: inDays(secondWeekEnd - idx(`FechaEncuesta`).parse(dateFormat)) < 7})
 let firstWeekTotalKg = firstWeekDf["Cant Kg", float].sum
 let secondWeekTotalKg = secondWeekDf["Cant Kg", float].sum
-let weeksKgDifference = ((secondWeekTotalKg - firstWeekTotalKg) / firstWeekTotalKg) * 100 # Percentage
+let weeksKgDifference* = ((secondWeekTotalKg - firstWeekTotalKg) / firstWeekTotalKg) * 100 # Percentage
 
 print weeksKgDifference
 
@@ -99,7 +119,7 @@ proc sumGrupos(df: DataFrame): Table[Grupo, float] =
 let firstWeekGruposTotalKg = firstWeekDf.sumGrupos()
 let secondWeekGruposTotalKg = secondWeekDf.sumGrupos()
 
-var weeksGruposDifference = initTable[Grupo, float]() # Percentage per grupo
+var weeksGruposDifference* = initTable[Grupo, float]() # Percentage per grupo
 for grupo, total in firstWeekGruposTotalKg:
   assert grupo in secondWeekGruposTotalKg, &"{grupo=}"
   weeksGruposDifference[grupo] = ((secondWeekGruposTotalKg[grupo] - total) / total) * 100
@@ -119,26 +139,38 @@ proc parseFuente(input: string): Fuente =
   if result.ciudad == "Cali" and result.mercado == "Santa Helena":
     result.mercado = "Santa Elena"
 
-proc sumFuentes(df: DataFrame): Table[Fuente, float] =
+proc sumFuentesAndCiudades(df: DataFrame): tuple[fuentes: Table[Fuente, float], ciudades: Table[string, float]] =
   for f in fuentes:
-    result[f] = 0
+    result.fuentes[f] = 0
+
+  for c in ciudades:
+    result.ciudades[c] = 0
 
   for t, subDf in groups df.group_by("Fuente"):
     assert t.len == 1, &"{t.len=}" # Since it was only grouped_by one column
     assert t[0][1].kind == VString, &"{t[0][1].kind=}"
 
     let fuente = t[0][1].toStr.parseFuente() # t[0][1] would be each fuente
-    result[fuente] += subDf["Cant Kg", float].sum
+    result.fuentes[fuente] += subDf["Cant Kg", float].sum
+    result.ciudades[fuente.ciudad] += subDf["Cant Kg", float].sum
 
-let firstWeekFuentesTotalKg = firstWeekDf.sumFuentes()
-let secondWeekFuentesTotalKg = secondWeekDf.sumFuentes()
 
-var weeksFuentesDifference = initTable[Fuente, float]() # Percentage per fuente
+let (firstWeekFuentesTotalKg, firstWeekCiudadesTotalKg) = firstWeekDf.sumFuentesAndCiudades()
+let (secondWeekFuentesTotalKg, secondWeekCiudadesTotalKg) = secondWeekDf.sumFuentesAndCiudades()
+
+var weeksFuentesDifference* = initTable[Fuente, float]() # Percentage per fuente
 for fuente, total in firstWeekFuentesTotalKg:
   assert fuente in secondWeekFuentesTotalKg, &"{fuente=}"
   weeksFuentesDifference[fuente] = ((secondWeekFuentesTotalKg[fuente] - total) / total) * 100
 
 print weeksFuentesDifference
+
+var weeksCiudadesDifference* = initTable[string, float]() # Percentage per fuente
+for ciudad, total in firstWeekCiudadesTotalKg:
+  assert ciudad in secondWeekCiudadesTotalKg, &"{ciudad=}"
+  weeksCiudadesDifference[ciudad] = ((secondWeekCiudadesTotalKg[ciudad] - total) / total) * 100
+
+print weeksCiudadesDifference
 
 proc sumFuentesGrupos(df: DataFrame): Table[Fuente, Table[Grupo, float]] =
   for f in fuentes:
@@ -147,7 +179,7 @@ proc sumFuentesGrupos(df: DataFrame): Table[Fuente, Table[Grupo, float]] =
       result[f][g] = 0
 
   for t, subDf in groups(df.group_by(["Fuente", "Grupo"])):
-    assert t.len == 2, &"{t.len=}" # Since it was only grouped_by one column
+    assert t.len == 2, &"{t.len=}" # Since it was grouped_by two columns
 
     assert t[0][1].kind == VString, &"{t[0][1].kind=}"
     assert t[1][1].kind == VString, &"{t[0][1].kind=}"
@@ -159,7 +191,7 @@ proc sumFuentesGrupos(df: DataFrame): Table[Fuente, Table[Grupo, float]] =
 let firstWeekFuentesGruposTotalKg = firstWeekDf.sumFuentesGrupos()
 let secondWeekFuentesGruposTotalKg = secondWeekDf.sumFuentesGrupos()
 
-var weeksFuentesGruposDifference = initTable[Fuente, Table[Grupo, float]]() # Percentage per fuente and grupo
+var weeksFuentesGruposDifference* = initTable[Fuente, Table[Grupo, float]]() # Percentage per fuente and grupo
 for fuente, grupos in firstWeekFuentesGruposTotalKg:
   assert fuente in secondWeekFuentesGruposTotalKg, &"{fuente=}"
   weeksFuentesGruposDifference[fuente] = initTable[Grupo, float]()
@@ -169,7 +201,26 @@ for fuente, grupos in firstWeekFuentesGruposTotalKg:
 
 print weeksFuentesGruposDifference
 
-# echo subDf.select("Fuente", "FechaEncuesta", "Grupo", "Ali", "Cant Pres", "Pres", "Peso Pres", "Cant Kg")
+proc sumWeekdays(df: DataFrame): Table[WeekDay, float] =
+  for i in WeekDay:
+    result[i] = 0
 
-## TODO: remove ", D.C." from "Bogota, D.C." when writing the docx
+  for t, subDf in groups(df.group_by("FechaEncuesta")):
+    assert t.len == 1, &"{t.len=}" # Since it was only grouped_by one column
+
+    assert t[0][1].kind == VString, &"{t[0][1].kind=}"
+
+    let fecha = t[0][1].toStr.parse(dateFormat) # t[0][1] would be each FechaEncuesta
+    result[fecha.weekday] += subDf["Cant Kg", float].sum
+
+let firstWeekWeekdaysTotalKg = firstWeekDf.sumWeekdays()
+let secondWeekWeekdaysTotalKg = secondWeekDf.sumWeekdays()
+
+var weeksWeekdaysDifference* = initTable[WeekDay, float]() # Percentage per weekday
+for weekday, total in firstWeekWeekdaysTotalKg:
+  assert weekday in secondWeekWeekdaysTotalKg, &"{weekday=}"
+  weeksWeekdaysDifference[weekday] = ((secondWeekWeekdaysTotalKg[weekday] - total) / total) * 100
+
+print weeksWeekdaysDifference
+m.finish()
 
