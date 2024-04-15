@@ -1,4 +1,4 @@
-import std/[strformat, times, strutils, tables, math, algorithm]
+import std/[strformat, times, strutils, tables, math, algorithm, sequtils, sugar]
 import minidocx/lowapi
 import timeit, pretty
 
@@ -21,7 +21,40 @@ const
   paragraphFont = (size: 11, name: "Segoe UI")
   legendFont = (size: 10, name: "Segoe UI")
 
+  gruposArticle = {
+    gVerdHort: "las", gTubRaiPla: "los",
+    gFrutas: "las", gOtros: "los"
+  }.toTable
+
+  ciudadesArticles = {
+    "Ipiales (Nariño)": "el",
+    "Sincelejo": "el", 
+    "Manizales": "el", 
+    "Montería": "el",
+    "Tunja": "el",  
+    "Medellín": "la", 
+    "Popayán": "la",
+    "Ibagué": "la", 
+    "Cali": "",
+    "Neiva": "", 
+    "Bogotá, D.C.": "",
+    "Villavicencio": "", 
+    "Cúcuta": "", 
+    "Barranquilla": "",
+    "Armenia": "", 
+    "Tibasosa (Boyacá)": "", 
+    "Bucaramanga": "", 
+    "Cartagena": "", 
+    "Valledupar": "",
+    "Santa Marta (Magdalena)": "",
+    "Pereira": "",
+    "Florencia": "",
+    "Pasto": "",
+  }.toTable
+
 var m = monit("document")
+m.start()
+
 var doc: Document
 
 if weeksKgDifference == 0:
@@ -65,14 +98,14 @@ block p1:
   r.setFont(paragraphFont.name)
   r.setFontSize(cdouble paragraphFont.size)
   r.appendLineBreak()
-  r.appendtext(("El abastecimiento en los mercados mayoristas donde el SIPSA en el Componente de Abastecimiento " &
+  r.appendText(("El abastecimiento en los mercados mayoristas donde el SIPSA en el Componente de Abastecimiento " &
   "tomó información para las semanas $1 $2 en $3.") % [
     weeksText,
     if secondWeekIncreased:
       "aumentó"
     else:
       "disminuyó"
-    , formatFloat(abs(weeksKgDifference), ffDecimal, 2, ',') & '%'
+    , myFormatFloat(abs(weeksKgDifference)),
   ])
   r.appendLineBreak()
   p.setAlignment(ParagraphAlignment.Justified)
@@ -121,7 +154,9 @@ block p3:
   r.setFontStyle(RunFontStyle.Bold)
 
   r.appendLineBreak()
-  r.appendText(&"Gráfico 4. Abastecimiento diario de alimentos de las últimas dos semanas $1 mercados mayoristas {fuentes.len}")
+  r.appendText("Gráfico 4. Abastecimiento diario de alimentos de las últimas dos semanas")
+  r.appendLineBreak()
+  r.appendText(&"{fuentes.len} mercados mayoristas")
   r.appendLineBreak()
   r.appendText(&"{firstWeekStart.monthday}{firstWeekStartMonth}{firstWeekStartYear} al {secondWeekEnd.monthday} de {spanishMonths[secondWeekEnd.month]} de {secondWeekEnd.year}")
 
@@ -138,11 +173,6 @@ block p3:
   var r4 = p.appendRun(" DANE – SIPSA_A", cdouble legendFont.size - 1, legendFont.name)
   r4.appendLineBreak()
 
-const gruposArticle = {
-  gVerdHort: "las", gTubRaiPla: "los",
-  gFrutas: "las", gOtros: ""
-}.toTable
-
 block p4:
   var p = doc.appendParagraph()
   var r = p.appendRun((&"Así, los {gTubRaiPla} $1 su oferta $2, las {gFrutas} $3 su acopio en $4, " &
@@ -150,24 +180,30 @@ block p4:
     if weeksGruposDifference[gTubRaiPla] > 0:
       "aumentaron"
     else: "disminuyeron",
-    formatFloat(abs(weeksGruposDifference[gTubRaiPla]),ffDecimal, 2, ',') & '%',
+    myFormatFloat(abs(weeksGruposDifference[gTubRaiPla])),
     if weeksGruposDifference[gFrutas] > 0:
       "subieron"
     else: "bajaron",
-    formatFloat(abs(weeksGruposDifference[gFrutas]),ffDecimal, 2, ',') & '%',
+    myFormatFloat(abs(weeksGruposDifference[gFrutas])),
     if weeksGruposDifference[gVerdHort] > 0:
       "aumentaron"
     else: "disminuyeron",
-    formatFloat(abs(weeksGruposDifference[gVerdHort]),ffDecimal, 2, ',') & '%',
+    myFormatFloat(abs(weeksGruposDifference[gVerdHort])),
     if weeksGruposDifference[gOtros] > 0:
       "subió"
     else: "bajó",
-    formatFloat(abs(weeksGruposDifference[gOtros]),ffDecimal, 2, ',') & '%',
+    myFormatFloat(abs(weeksGruposDifference[gOtros])),
   ], cdouble paragraphFont.size, paragraphFont.name)
   r.appendLineBreak()
 
-block p5:
-  let ciudadesSorted = sorted(ciudades, proc(x, y: string): int = cmp(weeksCiudadesDifference[x], weeksCiudadesDifference[y]), SortOrder.Descending)
+block p5: # Actually these creates 4 paragraphs
+  let order = 
+    if secondWeekIncreased:
+      SortOrder.Descending
+    else:
+      SortOrder.Ascending
+
+  let ciudadesSorted = sorted(ciudades, proc(x, y: string): int = cmp(weeksCiudadesDifference[x], weeksCiudadesDifference[y]), order)
   var ciudadesMercados = initOrderedTable[string, seq[string]]() # {ciudad: @[mercado1, mercado2], ...}
   for ciudad in ciudadesSorted:
     ciudadesMercados[ciudad] = newSeq[string]()
@@ -175,28 +211,176 @@ block p5:
   for fuente in fuentes:
     ciudadesMercados[fuente.ciudad].add fuente.mercado
 
-  proc ciudadSentence(ciudad: string): string =
-    assert ciudad in ciudadesMercados
+  print ciudadesMercados
+
+  proc ciudadSentence(ciudad: string, index: int): string =
+    assert ciudad in ciudadesMercados and ciudad in ciudadesArticles, &"{ciudad=}"
 
     let fuentes = ciudadesMercados[ciudad]
-    result.add case fuentes.len
+    let ciudadMostGrupo = block:
+      let order =
+        if secondWeekIncreased:
+          SortOrder.Descending
+        else:
+          SortOrder.Ascending
+
+      Grupo.toSeq().sorted(
+        proc(x, y: Grupo): int = 
+          ## Sort grupos in order of most importance in the difference between the two weeks.
+          ## If there is a group that is NaN, it's sorted in the last place
+          let xx = weeksCiudadesGruposDifference[ciudad][x]
+          let yy = weeksCiudadesGruposDifference[ciudad][y]
+          if xx.isNan and yy.isNan:
+            0
+          elif xx.isNan:
+            if order == SortOrder.Descending:
+              -100
+            else:
+              100
+          elif yy.isNan:
+            if order == SortOrder.Descending:
+              100            
+            else:
+              -100
+          else:
+            cmp(xx, yy)
+        
+        , order
+      )[0]
+
+    result = 
+      if index == 0:
+        "Entre los mercados mayoristas que registraron $1 en su oferta de alimentos se encuentran" % [
+          if secondWeekIncreased: "altas"
+          else: "bajas"
+        ]
+      else:
+        "En"
+
+    result.add " "
+
+    result.add:
+      case fuentes.len
       of 0:
         &"el mercado de {ciudad}"
       of 1:
-        &"{fuentes[0]} en {ciudad}"
+        var ciudad2 = ciudad # ciudad without parenthesis
+        if '(' in ciudad2:
+          ciudad2 = ciudad2[0 .. ciudad2.find('(') - 2]
+
+        let article  = 
+          if ciudadesArticles[ciudad].len > 0:
+            ciudadesArticles[ciudad] & " "
+          else: ""
+
+        &"{article}{fuentes[0]} en {ciudad2}"
       else:
         fuentes.joinButLast(", ", " y ") & &" en {ciudad}"
 
-    
+    if index == 0:
+      result.add " que"
 
-  print ciudadesMercados
+    result.add " "
+
+    # TODO: add more variants
+    result.add "$1 su abastecimiento $2 por $3 $4 que $5 sus inventarios en $6, debido al $7 ingreso de ..." % [
+      if weeksCiudadesDifference[ciudad] > 0:
+        "aumentó"
+      else:
+        "disminuyó",
+      myFormatFloat(abs(weeksCiudadesDifference[ciudad])),
+      gruposArticle[ciudadMostGrupo],
+      $ciudadMostGrupo, 
+      if weeksCiudadesGruposDifference[ciudad][ciudadMostGrupo] > 0:
+        "incrementar"
+      else:
+        "redujeron",
+      myFormatFloat(abs(weeksCiudadesGruposDifference[ciudad][ciudadMostGrupo])),
+      if weeksCiudadesGruposDifference[ciudad][ciudadMostGrupo] > 0:
+        "mayor"
+      else:
+        "menor",
+    ]
 
   var p = doc.appendParagraph()
-  var r = p.appendRun("Entre los mercados mayoristas que registraron $1 en su oferta de alimentos se encuentran $2" % [
-    if secondWeekIncreased: "altas"
-    else: "bajas",
-    "ciudad"
-  ], cdouble paragraphFont.size, paragraphFont.name)
+
+  for i in countup(0, 6, 2):
+    assert i + 1 < ciudadesMercados.len, &"No hay suficientes ciudades para los párrafos {ciudadesMercados=}"
+    var r = p.appendRun(ciudadSentence(ciudadesMercados.at(i).key, i) & " " & ciudadSentence(ciudadesMercados.at(i + 1).key, i + 1), 
+      cdouble paragraphFont.size, paragraphFont.name)
+    r.appendLineBreak()
+
+block p9:
+  const sentences = ["participaron con el", "concentraron el", "representaron el", "el"]
+
+  var weeksText = &"{secondWeekStart.monthday}"
+  if secondWeekStart.month != secondWeekEnd.month:
+    weeksText.add " de {spanishMonths[secondWeekStart.month]}"
+
+  weeksText.add &" al {secondWeekEnd.monthday} de {spanishMonths[secondWeekEnd.month]}"
+
+  var gruposText = ""
+  for e, grupo in Grupo.toSeq.sorted((x, y) => cmp(weeksGruposDifference[x], weeksGruposDifference[y]), SortOrder.Ascending):
+    let total = weeksGruposDifference[grupo]
+    let sentence = 
+      if e < sentences.len:
+        sentences[e]
+      else:
+        sentences[0]
+
+    gruposText.add &"{gruposArticle[grupo]} {grupo} {sentence} {myFormatFloat((secondWeekGruposTotalKg[grupo] / secondWeekTotalKg) * 100)}"
+    
+    gruposText.add:
+      if e < Grupo.high.int - 1: # Until the third-last one
+         ", "
+      elif e < Grupo.high.int: # Second-last
+        " y "
+      else: # Last
+        "."
+
+  var p = doc.appendParagraph()
+  var r = p.appendRun("La participación de los diferentes grupos en el total del abastecimiento " & 
+    "para la semana comprendida del $1 fue la siguiente: $2" % [
+      weeksText, 
+      gruposText
+    ], cdouble paragraphFont.size, paragraphFont.name
+  )
+  r.appendLineBreak()
+
+block p10:
+  var p = doc.appendParagraph("Revisando el acopio entre la semana 1 y la semana 8 de los últimos " & 
+    "tres años¹, el abastecimiento del presente año se encuentra por encima de los periodos " &
+    "anteriores, y específicamente la octava semana del año aumentó 14,03% con respecto a la " & 
+    "misma semana de 2023 y 20,95% frente al 2022.", 
+    cdouble paragraphFont.size, paragraphFont.name
+  )
+  var footNote = doc.appendParagraph("PIE DE NOTA¹ (Se comparan 23 ciudades que cubre el SIPSA_A en 2023 y 2024 frente a 21 ciudades que cubría en 2022.)")
+
+block p11:
+  var p = doc.appendParagraph()
+  var r = p.appendRun()
+  r.setFont(legendFont.name)
+  r.setFontSize(cdouble legendFont.size)
+  r.setFontStyle(RunFontStyle.Bold)
+
+  for i in 1..9:
+    r.appendLineBreak()
+
+  r.appendText("Gráfico 5. Abastecimiento semanal de alimentos de los últimos tres años")
+  r.appendLineBreak()
+  r.appendText("29 mercados mayoristas (2022) y 32 mercados mayoristas (2023 y 2024)")
+  r.appendLineBreak()
+
+  var r2 = p.appendRun("IMAGEN DE LA GRÁFICA", cdouble titleFont.size + 10)
+  r2.setFontStyle(mixFlags(RunFontStyle.Bold, RunFontStyle.Underline))
+
+  r2.appendLineBreak()
+
+  var r3 = p.appendRun("Fuente:", cdouble legendFont.size - 1, legendFont.name)
+  r3.setFontStyle(RunFontStyle.Bold)
+
+  var r4 = p.appendRun(" DANE – SIPSA_A", cdouble legendFont.size - 1, legendFont.name)
+  r4.appendLineBreak()
 
 let filename = block:
   let firstWeekStartMonth =

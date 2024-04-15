@@ -1,4 +1,4 @@
-import std/[strutils]
+import std/[strutils, strformat, tables]
 
 proc uniform*(str: string): string =
   str.strip().toLowerAscii().multiReplace(("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u"), ("ñ", "n"))
@@ -17,6 +17,20 @@ proc joinButLast*[T](a: openArray[T], sep, lastSep: string): string =
   result.add $a[e]
   result.add lastSep
   result.add $a[e+1]
+
+proc myFormatFloat*(f: SomeFloat): string = 
+  formatFloat(f, ffDecimal, 2, ',') & '%'
+
+proc at*[K, V](t: OrderedTable[K, V], i: int): tuple[key: K, val: V] = 
+  ## Returns the key-value pair at i index in t.
+  var count = 0
+  for k, v in t:
+    if count == i:
+      return (k, v)
+
+    inc count
+
+  raise newException(IndexDefect, &"Not found index {i}")
 
 # proc decodeWIN1252(str: string): string =
 #   str.multiReplace(

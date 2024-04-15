@@ -10,7 +10,7 @@ type
     gVerdHort = "verduras y hortalizas"
     gTubRaiPla = "tubérculos, raíces y plátanos"
     gFrutas = "frutas"
-    gOtros = "otros" # granos y cereales; lácteos y huevos; pescados; procesados; carnes
+    gOtros = "otros grupos" # granos y cereales; lácteos y huevos; pescados; procesados; carnes
 
   Fuente* = tuple[ciudad, mercado: string]
 
@@ -66,7 +66,7 @@ const
   ]
   grupos* = [ # Not uniformed (with accents)
     "verduras y hortalizas", "tubérculos, raíces y plátanos", "frutas",
-    "granos y cereales", "lácteos y huevos", "pescados", "procesados", "carnes"
+    "granos y cereales", "lácteos y huevos", "pescados", "procesados", "carnes" # Otros
   ]
   gruposToEnum* = { # Uniformed (without accents)
     "verduras y hortalizas": gVerdHort, "tuberculos, raices y platanos": gTubRaiPla, "frutas": gFrutas,
@@ -74,6 +74,7 @@ const
   }.toTable
 
 var m = monit("data")
+m.start()
 
 echo &"El formato para fechas es {dateFormat}"
 
@@ -94,8 +95,8 @@ assert inDays(secondWeekEnd - firstWeekStart) == 13, &"Entre el primer y último
 
 let firstWeekDf = df.filter(f{string -> bool: inDays(idx(`FechaEncuesta`).parse(dateFormat) - firstWeekStart) < 7})
 let secondWeekDf = df.filter(f{string -> bool: inDays(secondWeekEnd - idx(`FechaEncuesta`).parse(dateFormat)) < 7})
-let firstWeekTotalKg = firstWeekDf["Cant Kg", float].sum
-let secondWeekTotalKg = secondWeekDf["Cant Kg", float].sum
+let firstWeekTotalKg* = firstWeekDf["Cant Kg", float].sum
+let secondWeekTotalKg* = secondWeekDf["Cant Kg", float].sum
 let weeksKgDifference* = ((secondWeekTotalKg - firstWeekTotalKg) / firstWeekTotalKg) * 100 # Percentage
 
 print weeksKgDifference
@@ -116,8 +117,8 @@ proc sumGrupos(df: DataFrame): Table[Grupo, float] =
     let grupo = t[0][1].toStr.parseGrupo() # t[0][1] would be each grupo
     result[grupo] += subDf["Cant Kg", float].sum
 
-let firstWeekGruposTotalKg = firstWeekDf.sumGrupos()
-let secondWeekGruposTotalKg = secondWeekDf.sumGrupos()
+let firstWeekGruposTotalKg* = firstWeekDf.sumGrupos()
+let secondWeekGruposTotalKg* = secondWeekDf.sumGrupos()
 
 var weeksGruposDifference* = initTable[Grupo, float]() # Percentage per grupo
 for grupo, total in firstWeekGruposTotalKg:
@@ -172,11 +173,16 @@ for ciudad, total in firstWeekCiudadesTotalKg:
 
 print weeksCiudadesDifference
 
-proc sumFuentesGrupos(df: DataFrame): Table[Fuente, Table[Grupo, float]] =
+proc sumFuentesAndCiudadesGrupos(df: DataFrame): tuple[fuentes: Table[Fuente, Table[Grupo, float]], ciudades: Table[string, Table[Grupo, float]]] =
   for f in fuentes:
-    result[f] = initTable[Grupo, float]()
+    result.fuentes[f] = initTable[Grupo, float]()
     for g in Grupo:
-      result[f][g] = 0
+      result.fuentes[f][g] = 0
+
+  for c in ciudades:
+    result.ciudades[c] = initTable[Grupo, float]()
+    for g in Grupo:
+      result.ciudades[c][g] = 0
 
   for t, subDf in groups(df.group_by(["Fuente", "Grupo"])):
     assert t.len == 2, &"{t.len=}" # Since it was grouped_by two columns
@@ -186,10 +192,11 @@ proc sumFuentesGrupos(df: DataFrame): Table[Fuente, Table[Grupo, float]] =
 
     let fuente = t[0][1].toStr.parseFuente() # t[0][1] would be each fuente
     let grupo = t[1][1].toStr.parseGrupo() # t[0][1] would be each grupo
-    result[fuente][grupo] += subDf["Cant Kg", float].sum
+    result.fuentes[fuente][grupo] += subDf["Cant Kg", float].sum
+    result.ciudades[fuente.ciudad][grupo] += subDf["Cant Kg", float].sum
 
-let firstWeekFuentesGruposTotalKg = firstWeekDf.sumFuentesGrupos()
-let secondWeekFuentesGruposTotalKg = secondWeekDf.sumFuentesGrupos()
+let (firstWeekFuentesGruposTotalKg, firstWeekCiudadesGruposTotalKg) = firstWeekDf.sumFuentesAndCiudadesGrupos()
+let (secondWeekFuentesGruposTotalKg, secondWeeksCiudadesGruposTotalKg) = secondWeekDf.sumFuentesAndCiudadesGrupos()
 
 var weeksFuentesGruposDifference* = initTable[Fuente, Table[Grupo, float]]() # Percentage per fuente and grupo
 for fuente, grupos in firstWeekFuentesGruposTotalKg:
@@ -200,6 +207,20 @@ for fuente, grupos in firstWeekFuentesGruposTotalKg:
     weeksFuentesGruposDifference[fuente][grupo] = ((secondWeekFuentesGruposTotalKg[fuente][grupo] - total) / total) * 100
 
 print weeksFuentesGruposDifference
+
+var weeksCiudadesGruposDifference* = initTable[string, Table[Grupo, float]]() # Percentage per ciudad and grupo
+for ciudad, grupos in firstWeekCiudadesGruposTotalKg:
+  assert ciudad in secondWeeksCiudadesGruposTotalKg, &"{ciudad=}"
+  weeksCiudadesGruposDifference[ciudad] = initTable[Grupo, float]()
+  for grupo, total in grupos:
+    assert grupo in secondWeeksCiudadesGruposTotalKg[ciudad], &"{ciudad=} {grupo=}"
+    #if total == 0 and secondWeeksCiudadesGruposTotalKg[ciudad][grupo] == 0:
+    #  continue
+    weeksCiudadesGruposDifference[ciudad][grupo] = ((secondWeeksCiudadesGruposTotalKg[ciudad][grupo] - total) / total) * 100
+
+print firstWeekCiudadesGruposTotalKg
+print secondWeeksCiudadesGruposTotalKg
+print weeksCiudadesGruposDifference
 
 proc sumWeekdays(df: DataFrame): Table[WeekDay, float] =
   for i in WeekDay:
