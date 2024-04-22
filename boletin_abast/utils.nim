@@ -3,19 +3,23 @@ import std/[strutils, strformat, tables]
 proc uniform*(str: string): string =
   str.strip().toLowerAscii().multiReplace(("á", "a"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ú", "u"), ("ñ", "n"))
 
-proc joinButLast*[T](a: openArray[T], sep, lastSep: string): string =
-  ## Joins a with sep, but the last element is joind with lasSep
+proc joinButLast*[T](a: openArray[T], prefix, sep, lastSep: string): string =
+  ## Joins a with sep between elements and prefix before elements, but the last element is joind with lasSep
   if a.len == 1:
     return $a[0]
 
   var e = 0
   while e in a.low..(a.high - 2):
+    result.add prefix
     result.add $a[e]
     result.add sep
     inc e
 
+  result.add prefix
   result.add $a[e]
   result.add lastSep
+
+  result.add prefix
   result.add $a[e+1]
 
 proc myFormatFloat*(f: SomeFloat): string = 
