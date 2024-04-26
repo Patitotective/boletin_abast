@@ -1,7 +1,7 @@
 import std/[times, sets, strformat, tables, strutils, encodings, os, monotimes]
 import datamancer
 import arraymancer
-import timeit, pretty
+import pretty
 
 import utils
 
@@ -14,35 +14,8 @@ type
 
   Fuente* = tuple[ciudad, mercado: string]
 
-  Args* = tuple[dateFormat, inputPath: string, extraInfo: bool]
-
-  MessageKind* = enum
-    mkInfo, mkFinish
-
-  Message* = object
-    case kind*: MessageKind
-    of mkInfo:
-      info*: string
-    else: discard
-
-proc infoMsg(s: string): Message = 
-  Message(kind: mkInfo, info: s)
-
-proc finishMsg(): Message = 
-  Message(kind: mkFinish)
-
-proc pretty(a: auto): string = 
-    prettyString(prettyWalk(a))
-
-template info(a: typed): untyped = 
-  channel.send infoMsg a
-
-template extraInfo(a: typed): untyped = 
-  if args.extraInfo:
-    channel.send infoMsg a
-
 const
-  dateFormat = "dd/MM/yyyy"
+  #dateFormat = "dd/MM/yyyy"
   ciudades* = [
     "Armenia", "Barranquilla",
     "Bogotá, D.C.", "Bucaramanga",
@@ -100,16 +73,12 @@ const
     "granos y cereales": gOtros, "lacteos y huevos": gOtros, "pescados": gOtros, "procesados": gOtros, "carnes": gOtros
   }.toTable
 
-var channel*: Channel[Message]
-
-proc processData(args: Args): auto =
+proc processData*(dateFormat, inputPath: string): auto =
   let startTime = getMonoTime()
-
-  info &"El formato para fechas es {args.dateFormat}"
 
   #const path = currentSourcePath.parentDir() / "../InfoAbaste-2-26_03_2024.csv"
 
-  let df = parseCsvString(readFile(args.inputPath).convert(destEncoding = "UTF-8", srcEncoding = "CP1252"), sep = ';', quote = '\0')
+  let df = parseCsvString(readFile(inputPath).convert(destEncoding = "UTF-8", srcEncoding = "CP1252"), sep = ';', quote = '\0')
 
   for column in ["Fuente", "FechaEncuesta", "HoraEncuesta", "TipoVehiculo", "PlacaVehiculo", "Cod. Depto Proc.", "Departamento Proc.", "Cod. Municipio Proc.", "Municipio Proc.", "Observaciones", "Grupo", "Codigo CPC", "Ali", "Cant Pres", "Pres", "Peso Pres", "Cant Kg"]:
     assert column in df, &"La columna \"{column}\" no existe"
@@ -128,7 +97,7 @@ proc processData(args: Args): auto =
   let secondWeekTotalKg = secondWeekDf["Cant Kg", float].sum
   let weeksKgDifference = ((secondWeekTotalKg - firstWeekTotalKg) / firstWeekTotalKg) * 100 # Percentage
 
-  extraInfo pretty weeksKgDifference
+  print weeksKgDifference
 
   proc parseGrupo(input: string): Grupo =
     let grupo = input.uniform
@@ -154,7 +123,7 @@ proc processData(args: Args): auto =
     assert grupo in secondWeekGruposTotalKg, &"{grupo=}"
     weeksGruposDifference[grupo] = ((secondWeekGruposTotalKg[grupo] - total) / total) * 100
 
-  extraInfo pretty weeksGruposDifference
+  print weeksGruposDifference
 
   proc parseFuente(input: string): Fuente =
     let fuenteSplit = input.rsplit(", ", maxsplit = 1)
@@ -193,14 +162,14 @@ proc processData(args: Args): auto =
     assert fuente in secondWeekFuentesTotalKg, &"{fuente=}"
     weeksFuentesDifference[fuente] = ((secondWeekFuentesTotalKg[fuente] - total) / total) * 100
 
-  extraInfo pretty weeksFuentesDifference
+  print weeksFuentesDifference
 
   var weeksCiudadesDifference = initTable[string, float]() # Percentage per fuente
   for ciudad, total in firstWeekCiudadesTotalKg:
     assert ciudad in secondWeekCiudadesTotalKg, &"{ciudad=}"
     weeksCiudadesDifference[ciudad] = ((secondWeekCiudadesTotalKg[ciudad] - total) / total) * 100
 
-  extraInfo pretty weeksCiudadesDifference
+  print weeksCiudadesDifference
 
   proc sumFuentesAndCiudadesGrupos(df: DataFrame): tuple[fuentes: Table[Fuente, Table[Grupo, float]], ciudades: Table[string, Table[Grupo, float]]] =
     for f in fuentes:
@@ -235,7 +204,7 @@ proc processData(args: Args): auto =
       assert grupo in secondWeekFuentesGruposTotalKg[fuente], &"{fuente=} {grupo=}"
       weeksFuentesGruposDifference[fuente][grupo] = ((secondWeekFuentesGruposTotalKg[fuente][grupo] - total) / total) * 100
 
-  extraInfo pretty weeksFuentesGruposDifference
+  print weeksFuentesGruposDifference
 
   var weeksCiudadesGruposDifference = initTable[string, Table[Grupo, float]]() # Percentage per ciudad and grupo
   for ciudad, grupos in firstWeekCiudadesGruposTotalKg:
@@ -247,9 +216,9 @@ proc processData(args: Args): auto =
       #  continue
       weeksCiudadesGruposDifference[ciudad][grupo] = ((secondWeeksCiudadesGruposTotalKg[ciudad][grupo] - total) / total) * 100
 
-  extraInfo pretty firstWeekCiudadesGruposTotalKg
-  extraInfo pretty secondWeeksCiudadesGruposTotalKg
-  extraInfo pretty weeksCiudadesGruposDifference
+  print firstWeekCiudadesGruposTotalKg
+  print secondWeeksCiudadesGruposTotalKg
+  print weeksCiudadesGruposDifference
 
   proc sumWeekdays(df: DataFrame): Table[WeekDay, float] =
     for i in WeekDay:
@@ -271,8 +240,8 @@ proc processData(args: Args): auto =
     assert weekday in secondWeekWeekdaysTotalKg, &"{weekday=}"
     weeksWeekdaysDifference[weekday] = ((secondWeekWeekdaysTotalKg[weekday] - total) / total) * 100
 
-  extraInfo pretty weeksWeekdaysDifference
-  info &"Procesando los datos se demoró {getMonoTime() - startTime}"
+  print weeksWeekdaysDifference
+  echo &"Procesando los datos se demoró {getMonoTime() - startTime}"
 
   (
     firstWeekStart: firstWeekStart, secondWeekEnd: secondWeekEnd, firstWeekEnd: firstWeekEnd, secondWeekStart: secondWeekStart, 

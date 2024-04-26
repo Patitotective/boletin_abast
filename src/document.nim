@@ -1,6 +1,6 @@
-import std/[strformat, times, strutils, tables, math, algorithm, sequtils, sugar]
+import std/[strformat, times, strutils, tables, math, algorithm, sequtils, sugar, monotimes]
 import minidocx/lowapi
-import timeit, pretty
+import pretty
 
 import data, utils
 
@@ -52,9 +52,17 @@ const
     "Pasto": "",
   }.toTable
 
-  proc generateDocument() =
-  var m = monit("document")
-  m.start()
+proc generateDocument*(dateFormat, inputPath: string) =
+  let startTime = getMonoTime()
+
+  let (
+    firstWeekStart, secondWeekEnd, firstWeekEnd, secondWeekStart, 
+    firstWeekTotalKg, secondWeekTotalKg, weeksKgDifference, 
+    firstWeekGruposTotalKg, secondWeekGruposTotalKg, weeksGruposDifference, 
+    weeksFuentesDifference, weeksCiudadesDifference, 
+    weeksFuentesGruposDifference, weeksCiudadesGruposDifference, 
+    weeksWeekdaysDifference, 
+  ) = processData(dateFormat, inputPath)
 
   var doc: Document
 
@@ -276,7 +284,9 @@ const
 
       block:
         var ciudad2 = ciudad # ciudad without parenthesis
-        if '(' in ciudad2:
+        if ciudad2 == "Bogotá, D.C.":
+          ciudad2 = "Bogotá"
+        elif '(' in ciudad2:
           ciudad2 = ciudad2[0 .. ciudad2.find('(') - 2]
 
         let article  = 
@@ -577,6 +587,5 @@ const
 
   echo &"Archivo del documento: {filename}"
 
-  assert doc.save(filename)
-  m.finish()
-
+  assert doc.save(filename), "No se pudo guardar el archivo correctamente :("
+  echo &"Generando el documento se demoró {getMonoTime() - startTime}"
