@@ -1,12 +1,12 @@
 # Package
 
-version       = "0.1.0"
+version       = "0.1.1"
 author        = "Patitotective"
 description   = "A new awesome nimble package"
 license       = "MIT"
 backend       = "cpp"
-srcDir        = "src"
-namedBin["boletin_abast"] = "generador_boletin"
+bin           = @["boletin_abast"]
+#namedBin["boletin_abast"] = "generador_boletin"
 
 # Dependencies
 
@@ -16,6 +16,5 @@ requires "https://github.com/Patitotective/minidocx-nim/ >= 0.1.0"
 requires "https://github.com/Patitotective/pretty/ >= 0.2.0"
 requires "kdl >= 2.0.1"
 
-task "win", "Build for windows":
-  exec "nimble build --app:console --passl:\"-static -static-libgcc -static-libstdc++\""
-  #exec "nim c --app:lib -d:release  aaa.nim --passl:"-static -static-libgcc -static-libstdc++""
+task win, "Build for windows":
+  exec "nimble build --app:console -d:release --passl:\"-static -static-libgcc -static-libstdc++\""

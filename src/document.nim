@@ -48,7 +48,7 @@ const
     "Valledupar": "",
     "Santa Marta (Magdalena)": "",
     "Pereira": "",
-    "Florencia": "",
+    "Florencia (Caquetá)": "",
     "Pasto": "",
   }.toTable
 

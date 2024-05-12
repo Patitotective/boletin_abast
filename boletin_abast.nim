@@ -1,7 +1,7 @@
 import std/[os, strformat]
 import kdl
 
-import document
+import src/document
 
 type Config* = object
   inputPath*, dateFormat*: string
