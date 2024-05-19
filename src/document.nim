@@ -1,4 +1,4 @@
-import std/[strformat, times, strutils, tables, math, algorithm, sequtils, sugar, monotimes]
+import std/[strformat, times, strutils, tables, math, algorithm, sequtils, sugar, monotimes, random]
 import minidocx/lowapi
 import pretty
 
@@ -51,6 +51,8 @@ const
     "Florencia (Caquetá)": "",
     "Pasto": "",
   }.toTable
+
+randomize()
 
 proc generateDocument*(dateFormat, inputPath: string) =
   let startTime = getMonoTime()
@@ -185,7 +187,7 @@ proc generateDocument*(dateFormat, inputPath: string) =
   block p4:
     var p = doc.appendParagraph()
     var r = p.appendRun((&"Así, los {gTubRaiPla} $# su oferta $#, las {gFrutas} $# su acopio en $#, " &
-    &"en cambio las {gVerdHort} $# $# y el abastecimiento de la categoría de {gOtros} grupos $# $#.") % [
+    &"en cambio las {gVerdHort} $# $# y el abastecimiento de la categoría de {gOtros} $# $#.") % [
       if weeksGruposDifference[gTubRaiPla] > 0:
         "aumentaron"
       else: "disminuyeron",
@@ -275,7 +277,7 @@ proc generateDocument*(dateFormat, inputPath: string) =
         of 6:
           "Respecto a"
         of 7:
-          "Finalmente en"
+          "Finalmente"
         else:
           "En"
 
@@ -316,7 +318,7 @@ proc generateDocument*(dateFormat, inputPath: string) =
       # TODO: add more variants
       case index
       of 0:
-        result.add " $# su abastecimiento $# por $# $# que $# sus inventarios en $#, debido al $# ingreso de ..." % [
+        result.add " $# su abastecimiento $# por $# $# que $# sus inventarios en $#, debido al $# ingreso de ..., principalmente." % [
           if weeksCiudadesDifference[ciudad] > 0:
             "aumentó"
           else:
@@ -325,7 +327,7 @@ proc generateDocument*(dateFormat, inputPath: string) =
           gruposArticle[ciudadMostGrupo],
           $ciudadMostGrupo, 
           if weeksCiudadesGruposDifference[ciudad][ciudadMostGrupo] > 0:
-            "incrementar"
+            "incrementaron"
           else:
             "redujeron",
           myFormatFloat(abs(weeksCiudadesGruposDifference[ciudad][ciudadMostGrupo])),
@@ -355,7 +357,7 @@ proc generateDocument*(dateFormat, inputPath: string) =
         ]
       of 2:
         result.add (", la oferta de alimentos $# $#, a causa de $# que presentaron una variación $# del " & 
-          "$# influenciado por los alimentos como ...") % [
+          "$# influenciado por el ingreso de alimentos como ...") % [
             if weeksCiudadesDifference[ciudad] > 0:
               "incrementó"
             else:
@@ -369,7 +371,7 @@ proc generateDocument*(dateFormat, inputPath: string) =
             myFormatFloat(abs(weeksCiudadesGruposDifference[ciudad][ciudadMostGrupo]))
           ]
       of 3:
-        result.add ", el aprovisionamiento $# $#, por $# que presentaron un $# acopio llegando al $# $#, debido $# de ..." % [
+        result.add ", el aprovisionamiento $# $#, por $# que presentaron un $# acopio llegando al $# $#, debido $# de ..., entre otros." % [
             if weeksCiudadesDifference[ciudad] > 0:
               "subió"
             else:
@@ -391,7 +393,7 @@ proc generateDocument*(dateFormat, inputPath: string) =
               "a la caída",
         ]
       of 4:
-        result.add ", los inventarios de alimentos $# $# por $# que presentar $# del $# ante los $# volúmenes de ..." % [
+        result.add ", los inventarios de alimentos $# $# por $# que presentar $# del $# ante los $# volúmenes de ..., especialmente." % [
             if weeksCiudadesDifference[ciudad] > 0:
               "aumentarion"
             else:
@@ -409,7 +411,7 @@ proc generateDocument*(dateFormat, inputPath: string) =
               "menores",
         ]
       of 5:
-        result.add " $# el acopio en $# por $# que reportaron un $# del $# por el $# ingreso de ..." % [
+        result.add " $# el acopio en $# por $# que reportaron un $# del $# por el $# ingreso de alimentos como ..." % [
             if weeksCiudadesDifference[ciudad] > 0:
               "incrementó"
             else:
@@ -428,11 +430,11 @@ proc generateDocument*(dateFormat, inputPath: string) =
         ]
       of 6:
         result.add (", el aprovisionamiento de alimentos $# $# por $# que registraron una variación " & 
-          "$# del $#, como consecuencia de la $# entrada de ...") % [
+          "$# del $#, como consecuencia de la $# entrada de ..., entre otros.") % [
             if weeksCiudadesDifference[ciudad] > 0:
               "se elevó"
             else:
-              "descenció",
+              "descendió",
             myFormatFloat(abs(weeksCiudadesDifference[ciudad])),
             gruposArticle[ciudadMostGrupo] & " " & $ciudadMostGrupo, 
             if weeksCiudadesGruposDifference[ciudad][ciudadMostGrupo] > 0:
@@ -447,7 +449,7 @@ proc generateDocument*(dateFormat, inputPath: string) =
         ]
       of 7:
         result.add (", $# la oferta en $# por $# que registraron una $# " & 
-          "del $#, como resultado del $# ingrso de alimentos como ...") % [
+          "del $#, como resultado del $# ingreso de alimentos como ...") % [
             if weeksCiudadesDifference[ciudad] > 0:
               "aumentó"
             else:
@@ -484,10 +486,27 @@ proc generateDocument*(dateFormat, inputPath: string) =
         ]
 
     var p = doc.appendParagraph()
+    var options = @[1, 2, 3, 4, 5, 6]
+
 
     for i in countup(0, 6, 2):
-      assert i + 1 < ciudadesMercados.len, &"No hay suficientes ciudades para los párrafos {ciudadesMercados=}"
-      var r = p.appendRun(ciudadSentence(ciudadesMercados.at(i).key, i) & " " & ciudadSentence(ciudadesMercados.at(i + 1).key, i + 1), 
+      var r1, r2: int
+      if i == 0:
+        r1 = 0
+        r2 = sample(options)
+        options.del(options.find(r2))
+      elif i == 6:
+        r1 = sample(options)
+        options.del(options.find(r1))
+        r2 = 7
+      else:
+        r1 = sample(options)
+        options.del(options.find(r1))
+        r2 = sample(options)
+        options.del(options.find(r2))
+
+      assert r1 < ciudadesMercados.len and r2 < ciudadesMercados.len, &"No hay suficientes ciudades para los párrafos {ciudadesMercados=}"
+      var r = p.appendRun(ciudadSentence(ciudadesMercados.at(i).key, r1) & " " & ciudadSentence(ciudadesMercados.at(i + 1).key, r2), 
         cdouble paragraphFont.size, paragraphFont.name)
       r.appendLineBreak()
     
