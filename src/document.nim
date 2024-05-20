@@ -89,10 +89,10 @@ proc generateDocument*(dateFormat, inputPath: string) =
   proc weekText(startDate, endDate: DateTime): string =
     # If the end of the week is in the next year
     if startDate.year != endDate.year:
-      &"del {startDate.monthday} de {{spanishMonths[startDate.month]}} de {startDate.year} al {endDate.monthday} de {spanishMonths[endDate.month]} de {endDate.year}"
+      &"del {startDate.monthday} de {spanishMonths[startDate.month]} de {startDate.year} al {endDate.monthday} de {spanishMonths[endDate.month]} de {endDate.year}"
     # If the end of the week is in the next month
     elif startDate.month != endDate.month:
-      &"del {startDate.monthday} de {{spanishMonths[startDate.month]}} al {endDate.monthday} de {spanishMonths[endDate.month]}"
+      &"del {startDate.monthday} de {spanishMonths[startDate.month]} al {endDate.monthday} de {spanishMonths[endDate.month]}"
     else:
       &"del {startDate.monthday} al {endDate.monthday} de {spanishMonths[startDate.month]}"
 
@@ -262,9 +262,12 @@ proc generateDocument*(dateFormat, inputPath: string) =
       result =  
         case index
         of 0:
-          "Entre los mercados mayoristas que registraron $# en su oferta de alimentos se encuentran" % [
+          "Entre los mercados mayoristas que registraron $# en su oferta de alimentos se $#" % [
             if secondWeekIncreased: "altas"
-            else: "bajas"
+            else: "bajas", 
+            case fuentes.len
+            of 0, 1: "encuentra"
+            else: "encuentran"
           ]
         of 1, 3:
           "En"
@@ -393,9 +396,9 @@ proc generateDocument*(dateFormat, inputPath: string) =
               "a la caída",
         ]
       of 4:
-        result.add ", los inventarios de alimentos $# $# por $# que presentar $# del $# ante los $# volúmenes de ..., especialmente." % [
+        result.add ", los inventarios de alimentos $# $# por $# que presentaron $# del $# ante los $# volúmenes de ..., especialmente." % [
             if weeksCiudadesDifference[ciudad] > 0:
-              "aumentarion"
+              "aumentaron"
             else:
               "cayeron",
             myFormatFloat(abs(weeksCiudadesDifference[ciudad])),
@@ -467,9 +470,9 @@ proc generateDocument*(dateFormat, inputPath: string) =
               "menor",
         ]
       else: # Same as the 4th one
-        result.add ", los inventarios de alimentos $# $# por $# que presentar $# del $# ante los $# volúmenes de ..." % [
+        result.add ", los inventarios de alimentos $# $# por $# que presentaron $# del $# ante los $# volúmenes de ..., especialmente." % [
             if weeksCiudadesDifference[ciudad] > 0:
-              "aumentarion"
+              "aumentaron"
             else:
               "cayeron",
             myFormatFloat(abs(weeksCiudadesDifference[ciudad])),
@@ -518,7 +521,7 @@ proc generateDocument*(dateFormat, inputPath: string) =
 
     var weeksText = &"{secondWeekStart.monthday}"
     if secondWeekStart.month != secondWeekEnd.month:
-      weeksText.add " de {spanishMonths[secondWeekStart.month]}"
+      weeksText.add &" de {spanishMonths[secondWeekStart.month]}"
 
     weeksText.add &" al {secondWeekEnd.monthday} de {spanishMonths[secondWeekEnd.month]}"
 
